@@ -1,7 +1,9 @@
 package rpt.tool.logviewer_aprifilelogetxt.ui.log
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -11,10 +13,14 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import rpt.tool.logviewer_aprifilelogetxt.utils.Prefs
+import rpt.tool.logviewer_aprifilelogetxt.R
 import rpt.tool.logviewer_aprifilelogetxt.utils.data.LogLine
 import rpt.tool.logviewer_aprifilelogetxt.utils.data.enums.LogType
+import rpt.tool.logviewer_aprifilelogetxt.utils.Prefs
 import rpt.tool.logviewer_aprifilelogetxt.utils.parsers.LogParser
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.regex.Pattern
 
 class LogViewModel : ViewModel() {
@@ -26,6 +32,7 @@ class LogViewModel : ViewModel() {
 
     var searchQuery by mutableStateOf("")
     var isRegexMode by mutableStateOf(false)
+    var isSearchActive by mutableStateOf(false)
     var currentTab by mutableIntStateOf(0)
 
     var showSplash by mutableStateOf(true)
@@ -34,16 +41,25 @@ class LogViewModel : ViewModel() {
     var errorCount by mutableIntStateOf(0)
         private set
 
-    private val bookmarks = mutableSetOf<Int>()
+    var themeMode by mutableIntStateOf(0)
+        private set
+
+    var fileName by mutableStateOf("")
+    var fileDetails by mutableStateOf("-")
+    var errorMessage by mutableStateOf<String?>(null)
+
+    private var bookmarks by mutableStateOf(setOf<Int>())
 
     private var currentIndex = 0
     private val pageSize = 400
 
     fun init(context: Context) {
-        bookmarks.clear()
-        bookmarks.addAll(Prefs.loadBookmarks(context))
+        if (fileName.isEmpty()) fileName = context.getString(R.string.no_file_opened)
+        bookmarks = Prefs.loadBookmarks(context).toSet()
 
         showOnboarding = !Prefs.isOnboardingDone(context)
+
+        themeMode = Prefs.getThemeMode(context)
 
         viewModelScope.launch {
             delay(1200)
@@ -51,14 +67,15 @@ class LogViewModel : ViewModel() {
         }
     }
 
-
     fun completeOnboarding(context: Context) {
         Prefs.setOnboardingDone(context)
         showOnboarding = false
     }
 
     fun toggleBookmark(context: Context, id: Int) {
-        if (!bookmarks.add(id)) bookmarks.remove(id)
+        val current = bookmarks.toMutableSet()
+        if (!current.add(id)) current.remove(id)
+        bookmarks = current
         Prefs.saveBookmarks(context, bookmarks)
         refresh()
     }
@@ -72,24 +89,68 @@ class LogViewModel : ViewModel() {
 
     fun loadFile(context: Context, uri: Uri, save: Boolean = true) {
         viewModelScope.launch(Dispatchers.IO) {
-            allLines.clear()
-            currentIndex = 0
-
-            var id = 0
-
-            context.contentResolver.openInputStream(uri)
-                ?.bufferedReader()
-                ?.useLines { lines ->
-                    lines.forEach { l ->
-                        allLines.add(LogParser.parseLine(id++, l))
+            try {
+                errorMessage = null
+                if (save) {
+                    try {
+                        context.contentResolver.takePersistableUriPermission(
+                            uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
                 }
 
-            errorCount = allLines.count { it.type == LogType.ERROR }
+                allLines.clear()
+                var id = 0
 
-            if (save) Prefs.saveLastUri(context, uri)
+                extractFileInfo(context, uri)
 
-            reset()
+                context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    inputStream.bufferedReader().useLines { lines ->
+                        lines.forEach { l ->
+                            allLines.add(LogParser.parseLine(id++, l))
+                        }
+                    }
+                } ?: throw Exception("Impossibile aprire il file")
+
+                errorCount = allLines.count { it.type == LogType.ERROR }
+
+                if (save) Prefs.saveLastUri(context, uri)
+
+                reset()
+            } catch (e: SecurityException) {
+                e.printStackTrace()
+                errorMessage = "Permesso negato: non è possibile accedere al file. Selezionalo di nuovo."
+            } catch (e: Throwable) {
+                e.printStackTrace()
+                errorMessage = "Errore nel caricamento: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    private fun extractFileInfo(context: Context, uri: Uri) {
+        try {
+            context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (cursor.moveToFirst()) {
+                    if (nameIndex != -1) {
+                        fileName = cursor.getString(nameIndex) ?: "Sconosciuto"
+                    }
+                    if (sizeIndex != -1) {
+                        val sizeBytes = cursor.getLong(sizeIndex)
+                        val sizeMB = sizeBytes / (1024.0 * 1024.0)
+                        val dateStr = SimpleDateFormat("dd/MM/yyyy HH:mm",
+                            Locale.getDefault()).format(Date())
+                        fileDetails = String.format(Locale.getDefault(), "%.1f MB • %s",
+                            sizeMB, dateStr)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -109,6 +170,7 @@ class LogViewModel : ViewModel() {
             1 -> allLines.filter { bookmarks.contains(it.id) }
             else -> allLines.take(pageSize)
         }
+        if (searchQuery.isNotEmpty()) search(searchQuery)
     }
 
     fun search(q: String) {
@@ -129,9 +191,23 @@ class LogViewModel : ViewModel() {
         }
     }
 
-    fun getFilteredText(): String {
-        return displayedLines.joinToString("\n") { it.text }
+    fun getFilteredText(onlyBookmarks: Boolean = false): String {
+        val linesToExport = if (onlyBookmarks) allLines.filter { bookmarks.contains(it.id) }
+        else allLines
+        return linesToExport.joinToString("\n") { it.text }
     }
 
-    fun totalSize(): Int = if (currentTab == 1) displayedLines.size else allLines.size
+    fun toggleSearchActive() {
+        isSearchActive = !isSearchActive
+        if (!isSearchActive) {
+            searchQuery = ""
+            search("")
+        }
+    }
+
+    fun toggleTheme(context: Context, isCurrentlyDark: Boolean) {
+        val newMode = if (isCurrentlyDark) 1 else 2 // 1 = Light, 2 = Dark
+        themeMode = newMode
+        Prefs.saveThemeMode(context, newMode)
+    }
 }

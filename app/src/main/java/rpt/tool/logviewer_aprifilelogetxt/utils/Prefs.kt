@@ -11,6 +11,8 @@ object Prefs {
     private const val KEY_BOOKMARKS = "bookmarks"
     private const val KEY_ONBOARDING = "onboarding_done"
 
+    private const val KEY_THEME = "app_theme_mode"
+
     fun saveLastUri(context: Context, uri: Uri) {
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             .edit { putString(KEY_LAST_URI, uri.toString()) }
@@ -40,5 +42,15 @@ object Prefs {
     fun isOnboardingDone(context: Context): Boolean {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             .getBoolean(KEY_ONBOARDING, false)
+    }
+
+    fun saveThemeMode(context: Context, mode: Int) {
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .edit { putInt(KEY_THEME, mode) }
+    }
+
+    fun getThemeMode(context: Context): Int {
+        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .getInt(KEY_THEME, 2)
     }
 }

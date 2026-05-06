@@ -12,4 +12,5 @@
     <string name="open_btn">Apri file</string>
     <string name="share_btn">Condividi</string>
     <string name="errors_label">Errori: %1$d</string>
+    <string name="permission_denied">Permesso negato. Alcune funzionalità potrebbero non funzionare.</string>
 </resources>
