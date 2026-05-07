@@ -1,0 +1,32 @@
+<resources>
+    <string name="app_name">Log Viewer Pro</string>
+    <string name="log_viewer_pro">Log Viewer Pro</string>
+    <string name="title_activity_main">Log Viewer Pro</string>
+    <string name="welcome_title">Benvenuto in\nLog Viewer Pro</string>
+    <string name="onboarding_title_2">Analizza, cerca,\nsalva e condividi</string>
+    <string name="onboarding_title_3">Pronto all\'uso!</string>
+    <string name="onboarding_desc_1">Il visualizzatore di log avanzato per sviluppatori e professionisti IT.</string>
+    <string name="onboarding_desc_2">Usa regex per trovare esattamente ciò che cerchi e salva i log importanti.</string>
+    <string name="onboarding_desc_3">Apri un file log da qualsiasi app e inizia subito ad analizzarlo.</string>
+    <string name="next_btn">AVANTI</string>
+    <string name="start_btn">INIZIA</string>
+    <string name="all_tab">ALL</string>
+    <string name="bookmarks_tab">BOOKMARKS</string>
+    <string name="search_hint">Cerca…</string>
+    <string name="regex_label">Regex</string>
+    <string name="export_label">Esporta</string>
+    <string name="export_all">Esporta tutti i log</string>
+    <string name="export_fav">Esporta preferiti</string>
+    <string name="share_label">Condividi</string>
+    <string name="share_all">Condividi tutti i log</string>
+    <string name="share_fav">Condividi preferiti</string>
+    <string name="appearance_label">Aspetto</string>
+    <string name="theme_light">Passa a Tema Chiaro ☀️</string>
+    <string name="theme_dark">Passa a Tema Scuro 🌙</string>
+    <string name="share_chooser_title">Condividi Log</string>
+    <string name="no_file_opened">Nessun file aperto</string>
+    <string name="menu_content_description">Menu</string>
+    <string name="search_content_description">Cerca</string>
+    <string name="options_content_description">Opzioni</string>
+    <string name="permission_denied">Permesso negato. Alcune funzionalità potrebbero non funzionare.</string>
+</resources>
