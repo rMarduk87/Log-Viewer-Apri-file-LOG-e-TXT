@@ -1,4 +1,4 @@
-<img width="128" height="128" alt="play_store_512" src="https://github.com/user-attachments/assets/9362a263-0eb2-4f88-be2b-c5ffed636267" />
+<img width="512" height="512" alt="play_store_512" src="https://github.com/user-attachments/assets/7f10bb03-60c2-4f6a-a526-18368270871b" />
 
 # Log Viewer Pro
 
