@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">Log Viewer Pro</string>
-    <string name="log_viewer_pro">Log Viewer Pro</string>
-    <string name="title_activity_main">Log Viewer Pro</string>
-    <string name="welcome_title">Benvenuto in\nLog Viewer Pro</string>
+    <string name="app_name">Log Viewer - Open &amp; Read TXT Logs</string>
+    <string name="log_viewer_pro">Log Viewer - Open &amp; Read TXT Logs</string>
+    <string name="title_activity_main">Log Viewer - Open &amp; Read TXT Logs</string>
+    <string name="welcome_title">Benvenuto in\nLog Viewer - Open &amp; Read TXT Logs</string>
     <string name="onboarding_title_2">Analizza, cerca,\nsalva e condividi</string>
     <string name="onboarding_title_3">Pronto all\'uso!</string>
     <string name="onboarding_desc_1">Il visualizzatore di log avanzato per sviluppatori e professionisti IT.</string>

@@ -1,13 +1,13 @@
 <img width="512" height="512" alt="play_store_512" src="https://github.com/user-attachments/assets/2a6f2036-0d1b-4454-a276-8ad4207a1946" />
 
 
-# Log Viewer Pro
+# Log Viewer - Open & Read TXT Logs
 
 **Powerful • Fast • Offline**
 
 Il visualizzatore di log avanzato per sviluppatori e professionisti IT. 
 
-Log Viewer Pro è progettato per semplificare il debugging e l'analisi dei log direttamente dal tuo dispositivo, offrendo prestazioni elevate anche con file di grandi dimensioni.
+Log Viewer - Open & Read TXT Logs è progettato per semplificare il debugging e l'analisi dei log direttamente dal tuo dispositivo, offrendo prestazioni elevate anche con file di grandi dimensioni.
 
 ## 🌟 Caratteristiche Principali
 

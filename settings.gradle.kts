@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Log Viewer Pro – Regex & Bookmarks"
+rootProject.name = "Log Viewer - Open & Read TXT Logs – Regex & Bookmarks"
 include(":app")
