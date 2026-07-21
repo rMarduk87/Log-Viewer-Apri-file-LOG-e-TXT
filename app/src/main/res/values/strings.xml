@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">Log Viewer - Open &amp; Read TXT Logs</string>
-    <string name="log_viewer_pro">Log Viewer - Open &amp; Read TXT Logs</string>
-    <string name="title_activity_main">Log Viewer - Open &amp; Read TXT Logs</string>
-    <string name="welcome_title">Welcome to\nLog Viewer - Open &amp; Read TXT Logs</string>
+    <string name="app_name">Simple Log Viewer</string>
+    <string name="log_viewer_pro">Simple Log Viewer</string>
+    <string name="title_activity_main">Simple Log Viewer</string>
+    <string name="welcome_title">Welcome to\nSimple Log Viewer</string>
     <string name="onboarding_title_2">Analyze, search,\nsave and share</string>
     <string name="onboarding_title_3">Ready to use!</string>
     <string name="onboarding_desc_1">The advanced log viewer for developers and IT professionals.</string>
