@@ -14,6 +14,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,12 +23,15 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.FindInPage
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -68,6 +73,7 @@ data class AppColors(
     val textSecondary: Color,
     val info: Color,
     val debug: Color,
+    val verbose: Color,
     val warn: Color,
     val error: Color,
     val highlight: Color = Color(0xFF0055FF)
@@ -80,6 +86,7 @@ val DarkColors = AppColors(
     textSecondary = Color.Gray,
     info = Color(0xFF69F0AE),
     debug = Color(0xFF448AFF),
+    verbose = Color(0xFF94A3B8),
     warn = Color(0xFFFFD740),
     error = Color(0xFFFF5252)
 )
@@ -91,6 +98,7 @@ val LightColors = AppColors(
     textSecondary = Color.Gray,
     info = Color(0xFF00C853),
     debug = Color(0xFF2962FF),
+    verbose = Color(0xFF64748B),
     warn = Color(0xFFFF8F00),
     error = Color(0xFFD50000)
 )
@@ -335,6 +343,7 @@ fun LogViewerApp(vm: LogViewModel, isDarkTheme: Boolean) {
     var showMenu by remember { mutableStateOf(false) }
     val colors = LocalAppColors.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(vm.errorMessage) {
         vm.errorMessage?.let {
@@ -472,6 +481,63 @@ fun LogViewerApp(vm: LogViewModel, isDarkTheme: Boolean) {
                             }
                         }
                     )
+                    Tab(
+                        selected = vm.currentTab == 2,
+                        onClick = { vm.setTab(2) },
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.FindInPage, null,
+                                    Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(stringResource(R.string.heatmap_tab), fontWeight = FontWeight.SemiBold, color =
+                                    if(vm.currentTab == 2) colors.debug else colors.textSecondary)
+                            }
+                        }
+                    )
+                }
+
+                if (vm.currentTab != 2) {
+                    LogTypeFilterRow(vm)
+                }
+
+                if (vm.currentTab != 2 && !vm.isFilterActive) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.log_type_error),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(
+                            onClick = {
+                                vm.findPrevError(listState.firstVisibleItemIndex)?.let {
+                                    vm.selectLine(it)
+                                    scope.launch { listState.animateScrollToItem(it) }
+                                }
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.prev_error), tint = colors.textPrimary)
+                        }
+                        IconButton(
+                            onClick = {
+                                vm.findNextError(listState.firstVisibleItemIndex)?.let {
+                                    vm.selectLine(it)
+                                    scope.launch { listState.animateScrollToItem(it) }
+                                }
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.next_error), tint = colors.textPrimary)
+                        }
+                    }
                 }
 
                 if (vm.isSearchActive) {
@@ -525,25 +591,160 @@ fun LogViewerApp(vm: LogViewModel, isDarkTheme: Boolean) {
             }
         }
     ) { p ->
-        LazyColumn(
-            state = listState,
+        Box(modifier = Modifier.padding(p).fillMaxSize().background(colors.bg)) {
+            when (vm.currentTab) {
+                2 -> HeatMapScreen(vm)
+                else -> {
+                    LaunchedEffect(vm.highlightedLineIndex) {
+                        vm.highlightedLineIndex?.let { index ->
+                            listState.animateScrollToItem(index)
+                            vm.clearJumpTrigger()
+                        }
+                    }
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        itemsIndexed(vm.displayedLines) { i, line ->
+                            if (i > vm.displayedLines.size - 10) vm.loadNextPage()
+
+                            LogLineItem(
+                                line = line,
+                                query = vm.searchQuery,
+                                regex = vm.isRegexMode,
+                                bookmarked = vm.isBookmarked(line.id),
+                                selected = vm.selectedLineId == line.id,
+                                isBookmarkTab = vm.currentTab == 1
+                            ) { vm.toggleBookmark(context, line.id) }
+
+                            HorizontalDivider(color = colors.textSecondary.copy(alpha = 0.1f))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HeatMapScreen(vm: LogViewModel) {
+    val colors = LocalAppColors.current
+    val distribution = vm.getLogDistribution()
+    val total = distribution.values.sum().coerceAtLeast(1)
+
+    // 🔥 AGGIUNTA: calcolo buckets UNA VOLTA qui
+    val buckets = vm.getHeatBuckets()
+    val max = buckets.maxOrNull()?.coerceAtLeast(1) ?: 1
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp)
+            .background(colors.bg),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+
+        // ===== HEADER =====
+        Text(
+            text = stringResource(R.string.heatmap_tab),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = colors.textPrimary
+        )
+
+        Spacer(Modifier.height(32.dp))
+
+        // ===== DISTRIBUZIONE (GIÀ OK) =====
+        LogType.entries.forEach { type ->
+            val count = distribution[type] ?: 0
+            val percentage = (count.toFloat() / total)
+
+            val typeColor = when (type) {
+                LogType.ERROR -> colors.error
+                LogType.WARNING -> colors.warn
+                LogType.INFO -> colors.info
+                LogType.DEBUG -> colors.debug
+                LogType.VERBOSE -> colors.verbose
+                else -> colors.textSecondary
+            }
+
+            val labelRes = when(type) {
+                LogType.ERROR -> R.string.log_type_error
+                LogType.WARNING -> R.string.log_type_warning
+                LogType.INFO -> R.string.log_type_info
+                LogType.DEBUG -> R.string.log_type_debug
+                LogType.VERBOSE -> R.string.log_type_verbose
+                LogType.NORMAL -> R.string.log_type_normal
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(stringResource(labelRes), color = typeColor, fontWeight = FontWeight.Bold)
+                    Text("$count (${(percentage * 100).toInt()}%)", color = colors.textSecondary)
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(colors.surface)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(percentage)
+                            .fillMaxHeight()
+                            .background(typeColor)
+                    )
+                }
+            }
+        }
+
+        // ===== 🔥 SEZIONE HEATMAP =====
+
+        Spacer(Modifier.height(40.dp))
+
+        Text(
+            text = stringResource(R.string.heatmap_section_title),
+            style = MaterialTheme.typography.titleMedium,
+            color = colors.textPrimary
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        // 🔥 QUESTA È LA TUA HEATMAP
+        Row(
             modifier = Modifier
-                .padding(p)
-                .fillMaxSize()
-                .background(colors.bg)
+                .fillMaxWidth()
+                .height(40.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(colors.surface)
         ) {
-            itemsIndexed(vm.displayedLines) { i, line ->
-                if (i > vm.displayedLines.size - 10) vm.loadNextPage()
+            buckets.forEachIndexed { i, count ->
+                val intensity = count / max.toFloat()
 
-                LogLineItem(
-                    line = line,
-                    query = vm.searchQuery,
-                    regex = vm.isRegexMode,
-                    bookmarked = vm.isBookmarked(line.id),
-                    isBookmarkTab = vm.currentTab == 1
-                ) { vm.toggleBookmark(context, line.id) }
-
-                HorizontalDivider(color = colors.textSecondary.copy(alpha = 0.1f))
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .background(
+                            colors.error.copy(alpha = intensity)
+                        )
+                        // 🔥 MODIFICA: Delega la ricerca al ViewModel
+                        .clickable {
+                            vm.jumpToBucket(i, buckets.size)
+                        }
+                )
             }
         }
     }
@@ -557,12 +758,78 @@ fun shareText(context: android.content.Context, text: String) {
     context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_chooser_title)))
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LogTypeFilterRow(vm: LogViewModel) {
+    val context = LocalContext.current
+    val colors = LocalAppColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        LogType.entries.forEach { type ->
+            val isSelected = vm.selectedTypes.contains(type)
+            FilterChip(
+                selected = isSelected,
+                onClick = { vm.toggleType(context, type) },
+                label = {
+                    val labelRes = when(type) {
+                        LogType.ERROR -> R.string.log_type_error
+                        LogType.WARNING -> R.string.log_type_warning
+                        LogType.INFO -> R.string.log_type_info
+                        LogType.DEBUG -> R.string.log_type_debug
+                        LogType.VERBOSE -> R.string.log_type_verbose
+                        LogType.NORMAL -> R.string.log_type_normal
+                    }
+                    Text(stringResource(labelRes), fontSize = 12.sp)
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = when(type) {
+                        LogType.ERROR -> colors.error.copy(alpha = 0.2f)
+                        LogType.WARNING -> colors.warn.copy(alpha = 0.2f)
+                        LogType.INFO -> colors.info.copy(alpha = 0.2f)
+                        LogType.DEBUG -> colors.debug.copy(alpha = 0.2f)
+                        LogType.VERBOSE -> colors.verbose.copy(alpha = 0.2f)
+                        else -> colors.textSecondary.copy(alpha = 0.2f)
+                    },
+                    selectedLabelColor = when(type) {
+                        LogType.ERROR -> colors.error
+                        LogType.WARNING -> colors.warn
+                        LogType.INFO -> colors.info
+                        LogType.DEBUG -> colors.debug
+                        LogType.VERBOSE -> colors.verbose
+                        else -> colors.textPrimary
+                    },
+                    labelColor = colors.textSecondary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSelected,
+                    borderColor = colors.textSecondary.copy(alpha = 0.3f),
+                    selectedBorderColor = when(type) {
+                        LogType.ERROR -> colors.error
+                        LogType.WARNING -> colors.warn
+                        LogType.INFO -> colors.info
+                        LogType.DEBUG -> colors.debug
+                        LogType.VERBOSE -> colors.verbose
+                        else -> colors.textPrimary
+                    }
+                )
+            )
+        }
+    }
+}
+
 @Composable
 fun LogLineItem(
     line: LogLine,
     query: String,
     regex: Boolean,
     bookmarked: Boolean,
+    selected: Boolean = false,
     isBookmarkTab: Boolean,
     onBookmark: () -> Unit
 ) {
@@ -572,7 +839,15 @@ fun LogLineItem(
         LogType.ERROR -> colors.error
         LogType.WARNING -> colors.warn
         LogType.INFO -> colors.info
-        else -> colors.debug
+        LogType.DEBUG -> colors.debug
+        LogType.VERBOSE -> colors.verbose
+        else -> colors.textSecondary
+    }
+
+    val backgroundColor = when {
+        selected -> colors.highlight.copy(alpha = 0.15f)
+        bookmarked -> colors.warn.copy(alpha = 0.05f)
+        else -> Color.Transparent
     }
 
     val annotatedString = buildAnnotatedString {
@@ -598,7 +873,7 @@ fun LogLineItem(
             append(t)
         }
 
-        val logTypes = listOf("INFO", "ERROR", "WARN", "DEBUG", "WARNING")
+        val logTypes = listOf("INFO", "ERROR", "WARN", "DEBUG", "WARNING", "VERBOSE")
         val currentText = this.toAnnotatedString().text
         logTypes.forEach { typeLabel ->
             var startIndex = currentText.indexOf(typeLabel)
@@ -608,7 +883,9 @@ fun LogLineItem(
                     "INFO" -> colors.info
                     "ERROR" -> colors.error
                     "WARN", "WARNING" -> colors.warn
-                    else -> colors.debug
+                    "DEBUG" -> colors.debug
+                    "VERBOSE" -> colors.verbose
+                    else -> colors.textSecondary
                 }
                 addStyle(style = SpanStyle(color = colorToUse, fontWeight = FontWeight.Bold), 
                     start = startIndex, end = end)
@@ -619,7 +896,7 @@ fun LogLineItem(
 
     Surface(
         onClick = onBookmark,
-        color = if (bookmarked) colors.warn.copy(alpha = 0.05f) else Color.Transparent,
+        color = backgroundColor,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -630,10 +907,9 @@ fun LogLineItem(
         ) {
             Box(
                 Modifier
-                    .width(4.dp)
+                    .width(6.dp)
                     .fillMaxHeight()
-                    .background(if (bookmarked) colors.warn else 
-                        levelColor.copy(alpha = 0.5f))
+                    .background(if (bookmarked) colors.warn else levelColor.copy(alpha = 0.8f))
             )
 
             if (isBookmarkTab) {

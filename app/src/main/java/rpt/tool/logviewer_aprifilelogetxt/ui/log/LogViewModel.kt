@@ -26,6 +26,7 @@ import java.util.regex.Pattern
 class LogViewModel : ViewModel() {
 
     private val allLines = mutableListOf<LogLine>()
+    private var filteredLines = mutableListOf<LogLine>()
 
     var displayedLines by mutableStateOf<List<LogLine>>(emptyList())
         private set
@@ -34,6 +35,15 @@ class LogViewModel : ViewModel() {
     var isRegexMode by mutableStateOf(false)
     var isSearchActive by mutableStateOf(false)
     var currentTab by mutableIntStateOf(0)
+
+    var selectedTypes by mutableStateOf(setOf(LogType.ERROR))
+        private set
+
+    var selectedLineId by mutableStateOf<Int?>(null)
+        private set
+
+    val isFilterActive: Boolean
+        get() = selectedTypes.size < LogType.entries.size || searchQuery.isNotEmpty()
 
     var showSplash by mutableStateOf(true)
     var showOnboarding by mutableStateOf(false)
@@ -61,6 +71,12 @@ class LogViewModel : ViewModel() {
 
         themeMode = Prefs.getThemeMode(context)
 
+        Prefs.loadSelectedTypes(context)?.let { saved ->
+            selectedTypes = saved.mapNotNull {
+                try { LogType.valueOf(it) } catch (e: Exception) { null }
+            }.toSet()
+        }
+
         viewModelScope.launch {
             delay(1200)
             showSplash = false
@@ -80,7 +96,34 @@ class LogViewModel : ViewModel() {
         refresh()
     }
 
+    fun toggleType(context: Context, type: LogType) {
+        val current = selectedTypes.toMutableSet()
+        if (current.contains(type)) {
+            if (current.size > 1) current.remove(type)
+        } else {
+            current.add(type)
+        }
+        selectedTypes = current
+        Prefs.saveSelectedTypes(context, selectedTypes.map { it.name }.toSet())
+        refresh()
+    }
+
     fun isBookmarked(id: Int) = bookmarks.contains(id)
+
+    fun findNextError(fromIndex: Int): Int? {
+        for (i in (fromIndex + 1) until displayedLines.size) {
+            if (displayedLines[i].type == LogType.ERROR) return i
+        }
+        return null
+    }
+
+    fun findPrevError(fromIndex: Int): Int? {
+        val start = if (fromIndex >= displayedLines.size) displayedLines.size - 1 else fromIndex
+        for (i in (start - 1) downTo 0) {
+            if (displayedLines[i].type == LogType.ERROR) return i
+        }
+        return null
+    }
 
     fun setTab(i: Int) {
         currentTab = i
@@ -117,7 +160,11 @@ class LogViewModel : ViewModel() {
 
                 errorCount = allLines.count { it.type == LogType.ERROR }
 
-                if (save) Prefs.saveLastUri(context, uri)
+                if (save) {
+                    Prefs.saveLastUri(context, uri)
+                    selectedTypes = setOf(LogType.ERROR)
+                    Prefs.saveSelectedTypes(context, selectedTypes.map { it.name }.toSet())
+                }
 
                 reset()
             } catch (e: SecurityException) {
@@ -155,45 +202,62 @@ class LogViewModel : ViewModel() {
     }
 
     fun loadNextPage() {
-        val next = allLines.asSequence().drop(currentIndex).take(pageSize).toList()
+        val next = filteredLines.asSequence().drop(currentIndex).take(pageSize).toList()
         displayedLines += next
         currentIndex += next.size
     }
 
     fun reset() {
-        displayedLines = allLines.take(pageSize)
-        currentIndex = pageSize
+        refresh()
     }
 
     fun refresh() {
-        displayedLines = when (currentTab) {
-            1 -> allLines.filter { bookmarks.contains(it.id) }
-            else -> allLines.take(pageSize)
+        selectedLineId = null
+        val base = if (currentTab == 1) {
+            allLines.filter { bookmarks.contains(it.id) && selectedTypes.contains(it.type) }
+        } else {
+            allLines.filter { selectedTypes.contains(it.type) }
         }
-        if (searchQuery.isNotEmpty()) search(searchQuery)
+
+        val q = searchQuery
+        filteredLines = if (q.isEmpty()) {
+            base.toMutableList()
+        } else if (!isRegexMode) {
+            base.filter { it.text.contains(q, true) }.toMutableList()
+        } else {
+            try {
+                val r = Pattern.compile(q)
+                base.filter { r.matcher(it.text).find() }.toMutableList()
+            } catch (e: Exception) {
+                mutableListOf()
+            }
+        }
+
+        displayedLines = filteredLines.take(pageSize)
+        currentIndex = displayedLines.size
+    }
+
+    fun selectLine(index: Int) {
+        if (index in displayedLines.indices) {
+            selectedLineId = displayedLines[index].id
+        }
     }
 
     fun search(q: String) {
         searchQuery = q
-        val base = if (currentTab == 1) allLines.filter { bookmarks.contains(it.id) } else allLines
+        refresh()
+    }
 
-        displayedLines = if (q.isEmpty()) {
-            if (currentTab == 1) base else allLines.take(pageSize)
-        } else if (!isRegexMode) {
-            base.filter { it.text.contains(q, true) }
-        } else {
-            try {
-                val r = Pattern.compile(q)
-                base.filter { r.matcher(it.text).find() }
-            } catch (e: Exception) {
-                emptyList()
-            }
-        }
+    fun getLogDistribution(): Map<LogType, Int> {
+        return allLines.groupingBy { it.type }.eachCount()
     }
 
     fun getFilteredText(onlyBookmarks: Boolean = false): String {
-        val linesToExport = if (onlyBookmarks) allLines.filter { bookmarks.contains(it.id) }
-        else allLines
+        val linesToExport = if (onlyBookmarks) {
+            allLines.filter { bookmarks.contains(it.id) && selectedTypes.contains(it.type) }
+        } else {
+            allLines.filter { selectedTypes.contains(it.type) }
+        }
         return linesToExport.joinToString("\n") { it.text }
     }
 
@@ -209,5 +273,95 @@ class LogViewModel : ViewModel() {
         val newMode = if (isCurrentlyDark) 1 else 2 // 1 = Light, 2 = Dark
         themeMode = newMode
         Prefs.saveThemeMode(context, newMode)
+    }
+
+    fun getHeatBuckets(bucketCount: Int = 60): List<Int> {
+        val buckets = MutableList(bucketCount) { 0 }
+        val total = allLines.size.coerceAtLeast(1)
+
+        allLines.forEachIndexed { index, line ->
+            if (line.type == LogType.ERROR || line.type == LogType.WARNING) {
+                val bucket = ((index / total.toFloat()) * bucketCount)
+                    .toInt()
+                    .coerceIn(0, bucketCount - 1)
+
+                buckets[bucket]++
+            }
+        }
+
+        return buckets
+    }
+
+    var highlightedLineIndex by mutableStateOf<Int?>(null)
+        private set
+
+    fun jumpToLine(index: Int) {
+        // Clear filters to ensure the line is visible
+        searchQuery = ""
+        isSearchActive = false
+        selectedTypes = LogType.entries.toSet()
+        
+        setTab(0) // This calls refresh()
+        
+        if (index in allLines.indices) {
+            val targetId = allLines[index].id
+            
+            // Expand displayed lines to include the target
+            if (index >= displayedLines.size) {
+                displayedLines = allLines.take(index + pageSize)
+                currentIndex = displayedLines.size
+            }
+            
+            // Find the index in the NOW visible list (should match index since filters are cleared)
+            val finalIndex = displayedLines.indexOfFirst { it.id == targetId }
+            if (finalIndex != -1) {
+                selectedLineId = targetId
+                highlightedLineIndex = finalIndex
+            }
+        }
+    }
+
+    fun clearJumpTrigger() {
+        highlightedLineIndex = null
+    }
+
+    fun jumpToBucket(bucketIndex: Int, bucketCount: Int) {
+        val total = allLines.size.coerceAtLeast(1)
+        var targetIdx = -1
+        var firstLineInBucket = -1
+
+        // Scorriamo le righe ricalcolando il bucket con la STESSA formula dell'heatmap
+        // Questo evita matematicamente i problemi di arrotondamento e i "fuori di 1".
+        for (i in allLines.indices) {
+            val currentBucket = ((i / total.toFloat()) * bucketCount)
+                .toInt()
+                .coerceIn(0, bucketCount - 1)
+
+            if (currentBucket == bucketIndex) {
+                // Memorizza la prima riga di questo blocco (se non troviamo né error né warning)
+                if (firstLineInBucket == -1) firstLineInBucket = i
+
+                if (allLines[i].type == LogType.ERROR) {
+                    targetIdx = i
+                    break // Trovato l'ERROR! Ha la priorità assoluta, ci fermiamo.
+                }
+                if (allLines[i].type == LogType.WARNING && targetIdx == -1) {
+                    targetIdx = i // Memorizziamo il WARNING, ma continuiamo a cercare se c'è un ERROR
+                }
+            } else if (currentBucket > bucketIndex) {
+                // Abbiamo superato il blocco selezionato, inutile continuare a cercare
+                break
+            }
+        }
+
+        // Se non ha trovato né error né warning, va all'inizio del blocco
+        if (targetIdx == -1) {
+            targetIdx = firstLineInBucket
+        }
+
+        // Eseguiamo il salto alla riga precisa
+        if (targetIdx != -1) {
+            jumpToLine(targetIdx)
+        }
     }
 }

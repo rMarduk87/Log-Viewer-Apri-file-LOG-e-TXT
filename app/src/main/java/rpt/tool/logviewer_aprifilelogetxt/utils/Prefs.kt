@@ -12,6 +12,7 @@ object Prefs {
     private const val KEY_ONBOARDING = "onboarding_done"
 
     private const val KEY_THEME = "app_theme_mode"
+    private const val KEY_FILTERS = "selected_log_filters"
 
     fun saveLastUri(context: Context, uri: Uri) {
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
@@ -52,5 +53,15 @@ object Prefs {
     fun getThemeMode(context: Context): Int {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
             .getInt(KEY_THEME, 2)
+    }
+
+    fun saveSelectedTypes(context: Context, types: Set<String>) {
+        context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .edit { putStringSet(KEY_FILTERS, types) }
+    }
+
+    fun loadSelectedTypes(context: Context): Set<String>? {
+        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+            .getStringSet(KEY_FILTERS, null)
     }
 }
