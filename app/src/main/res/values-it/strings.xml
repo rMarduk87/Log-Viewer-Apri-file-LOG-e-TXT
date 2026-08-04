@@ -1,8 +1,8 @@
 <resources>
-    <string name="app_name">Simple Log Viewer</string>
-    <string name="log_viewer_pro">Simple Log Viewer</string>
-    <string name="title_activity_main">Simple Log Viewer</string>
-    <string name="welcome_title">Benvenuto in\nSimple Log Viewer</string>
+    <string name="app_name">Log Reader: Open Any File</string>
+    <string name="log_viewer_pro">Log Reader: Open Any File</string>
+    <string name="title_activity_main">Log Reader: Open Any File</string>
+    <string name="welcome_title">Benvenuto in\nLog Reader: Open Any File</string>
     <string name="onboarding_title_2">Analizza, cerca,\nsalva e condividi</string>
     <string name="onboarding_title_3">Pronto all\'uso!</string>
     <string name="onboarding_desc_1">Il visualizzatore di log avanzato per sviluppatori e professionisti IT.</string>
@@ -29,4 +29,10 @@
     <string name="search_content_description">Cerca</string>
     <string name="options_content_description">Opzioni</string>
     <string name="permission_denied">Permesso negato. Alcune funzionalità potrebbero non funzionare.</string>
+    <string name="error_cannot_open_file">Impossibile aprire il file</string>
+    <string name="error_permission_denied_access">Permesso negato: non è possibile accedere al file. Selezionalo di nuovo.</string>
+    <string name="error_loading_prefix">Errore nel caricamento: %1$s</string>
+    <string name="unknown_filename">Sconosciuto</string>
+    <string name="date_format_pattern">dd/MM/yyyy HH:mm</string>
+    <string name="file_info_format">%1$.1f MB • %2$s</string>
 </resources>

@@ -1,0 +1,4 @@
+- [ ] Update `strings.xml` with new resources
+- [ ] Refactor `LogViewModel.kt` to use string resources
+- [ ] Refactor `MainActivity.kt` to use string resources
+- [ ] Verify build and functionality
