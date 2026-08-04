@@ -12,6 +12,8 @@
     <string name="start_btn">START</string>
     <string name="all_tab">ALL</string>
     <string name="bookmarks_tab">BOOKMARKS</string>
+    <string name="heatmap_tab">HEATMAP</string>
+    <string name="heatmap_section_title">Error &amp; Warning Concentration</string>
     <string name="search_hint">Search…</string>
     <string name="regex_label">Regex</string>
     <string name="export_label">Export</string>
@@ -38,6 +40,8 @@
     <string name="log_type_error">ERROR</string>
     <string name="log_type_warning">WARNING</string>
     <string name="log_type_info">INFO</string>
+    <string name="log_type_debug">DEBUG</string>
+    <string name="log_type_verbose">VERBOSE</string>
     <string name="log_type_normal">NORMAL</string>
     <string name="next_error">Next Error</string>
     <string name="prev_error">Prev Error</string>
