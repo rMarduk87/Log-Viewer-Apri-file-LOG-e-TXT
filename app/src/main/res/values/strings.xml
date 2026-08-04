@@ -35,4 +35,10 @@
     <string name="unknown_filename">Unknown</string>
     <string name="date_format_pattern">dd/MM/yyyy HH:mm</string>
     <string name="file_info_format">%1$.1f MB • %2$s</string>
+    <string name="log_type_error">ERROR</string>
+    <string name="log_type_warning">WARNING</string>
+    <string name="log_type_info">INFO</string>
+    <string name="log_type_normal">NORMAL</string>
+    <string name="next_error">Next Error</string>
+    <string name="prev_error">Prev Error</string>
 </resources>

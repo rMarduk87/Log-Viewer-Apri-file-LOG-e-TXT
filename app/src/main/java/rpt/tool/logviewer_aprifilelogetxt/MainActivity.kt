@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,12 +22,15 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.FindInPage
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -335,6 +339,7 @@ fun LogViewerApp(vm: LogViewModel, isDarkTheme: Boolean) {
     var showMenu by remember { mutableStateOf(false) }
     val colors = LocalAppColors.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(vm.errorMessage) {
         vm.errorMessage?.let {
@@ -474,6 +479,48 @@ fun LogViewerApp(vm: LogViewModel, isDarkTheme: Boolean) {
                     )
                 }
 
+                if (vm.currentTab == 0) {
+                    LogTypeFilterRow(vm)
+                }
+
+                if (!vm.isFilterActive) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.log_type_error),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        IconButton(
+                            onClick = {
+                                vm.findPrevError(listState.firstVisibleItemIndex)?.let {
+                                    scope.launch { listState.animateScrollToItem(it) }
+                                }
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.KeyboardArrowUp, contentDescription = stringResource(R.string.prev_error), tint = colors.textPrimary)
+                        }
+                        IconButton(
+                            onClick = {
+                                vm.findNextError(listState.firstVisibleItemIndex)?.let {
+                                    scope.launch { listState.animateScrollToItem(it) }
+                                }
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = stringResource(R.string.next_error), tint = colors.textPrimary)
+                        }
+                    }
+                }
+
                 if (vm.isSearchActive) {
                     OutlinedTextField(
                         value = vm.searchQuery,
@@ -555,6 +602,62 @@ fun shareText(context: android.content.Context, text: String) {
         putExtra(Intent.EXTRA_TEXT, text)
     }
     context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_chooser_title)))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LogTypeFilterRow(vm: LogViewModel) {
+    val colors = LocalAppColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        LogType.values().forEach { type ->
+            val isSelected = vm.selectedTypes.contains(type)
+            FilterChip(
+                selected = isSelected,
+                onClick = { vm.toggleType(type) },
+                label = {
+                    val labelRes = when(type) {
+                        LogType.ERROR -> R.string.log_type_error
+                        LogType.WARNING -> R.string.log_type_warning
+                        LogType.INFO -> R.string.log_type_info
+                        LogType.NORMAL -> R.string.log_type_normal
+                    }
+                    Text(stringResource(labelRes), fontSize = 12.sp)
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = when(type) {
+                        LogType.ERROR -> colors.error.copy(alpha = 0.2f)
+                        LogType.WARNING -> colors.warn.copy(alpha = 0.2f)
+                        LogType.INFO -> colors.info.copy(alpha = 0.2f)
+                        else -> colors.debug.copy(alpha = 0.2f)
+                    },
+                    selectedLabelColor = when(type) {
+                        LogType.ERROR -> colors.error
+                        LogType.WARNING -> colors.warn
+                        LogType.INFO -> colors.info
+                        else -> colors.debug
+                    },
+                    labelColor = colors.textSecondary
+                ),
+                border = FilterChipDefaults.filterChipBorder(
+                    enabled = true,
+                    selected = isSelected,
+                    borderColor = colors.textSecondary.copy(alpha = 0.3f),
+                    selectedBorderColor = when(type) {
+                        LogType.ERROR -> colors.error
+                        LogType.WARNING -> colors.warn
+                        LogType.INFO -> colors.info
+                        else -> colors.debug
+                    }
+                )
+            )
+        }
+    }
 }
 
 @Composable

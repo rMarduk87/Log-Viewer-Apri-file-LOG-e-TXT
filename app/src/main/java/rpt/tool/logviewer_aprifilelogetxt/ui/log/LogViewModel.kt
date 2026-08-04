@@ -26,6 +26,7 @@ import java.util.regex.Pattern
 class LogViewModel : ViewModel() {
 
     private val allLines = mutableListOf<LogLine>()
+    private var filteredLines = mutableListOf<LogLine>()
 
     var displayedLines by mutableStateOf<List<LogLine>>(emptyList())
         private set
@@ -34,6 +35,12 @@ class LogViewModel : ViewModel() {
     var isRegexMode by mutableStateOf(false)
     var isSearchActive by mutableStateOf(false)
     var currentTab by mutableIntStateOf(0)
+
+    var selectedTypes by mutableStateOf(setOf(LogType.ERROR))
+        private set
+
+    val isFilterActive: Boolean
+        get() = currentTab == 1 || selectedTypes.size < LogType.entries.size || searchQuery.isNotEmpty()
 
     var showSplash by mutableStateOf(true)
     var showOnboarding by mutableStateOf(false)
@@ -80,7 +87,33 @@ class LogViewModel : ViewModel() {
         refresh()
     }
 
+    fun toggleType(type: LogType) {
+        val current = selectedTypes.toMutableSet()
+        if (current.contains(type)) {
+            if (current.size > 1) current.remove(type)
+        } else {
+            current.add(type)
+        }
+        selectedTypes = current
+        refresh()
+    }
+
     fun isBookmarked(id: Int) = bookmarks.contains(id)
+
+    fun findNextError(fromIndex: Int): Int? {
+        for (i in (fromIndex + 1) until displayedLines.size) {
+            if (displayedLines[i].type == LogType.ERROR) return i
+        }
+        return null
+    }
+
+    fun findPrevError(fromIndex: Int): Int? {
+        val start = if (fromIndex >= displayedLines.size) displayedLines.size - 1 else fromIndex
+        for (i in (start - 1) downTo 0) {
+            if (displayedLines[i].type == LogType.ERROR) return i
+        }
+        return null
+    }
 
     fun setTab(i: Int) {
         currentTab = i
@@ -155,40 +188,43 @@ class LogViewModel : ViewModel() {
     }
 
     fun loadNextPage() {
-        val next = allLines.asSequence().drop(currentIndex).take(pageSize).toList()
+        val next = filteredLines.asSequence().drop(currentIndex).take(pageSize).toList()
         displayedLines += next
         currentIndex += next.size
     }
 
     fun reset() {
-        displayedLines = allLines.take(pageSize)
-        currentIndex = pageSize
+        refresh()
     }
 
     fun refresh() {
-        displayedLines = when (currentTab) {
-            1 -> allLines.filter { bookmarks.contains(it.id) }
-            else -> allLines.take(pageSize)
+        val base = if (currentTab == 1) {
+            allLines.filter { bookmarks.contains(it.id) }
+        } else {
+            allLines.filter { selectedTypes.contains(it.type) }
         }
-        if (searchQuery.isNotEmpty()) search(searchQuery)
+
+        val q = searchQuery
+        filteredLines = if (q.isEmpty()) {
+            base.toMutableList()
+        } else if (!isRegexMode) {
+            base.filter { it.text.contains(q, true) }.toMutableList()
+        } else {
+            try {
+                val r = Pattern.compile(q)
+                base.filter { r.matcher(it.text).find() }.toMutableList()
+            } catch (e: Exception) {
+                mutableListOf()
+            }
+        }
+
+        displayedLines = filteredLines.take(pageSize)
+        currentIndex = displayedLines.size
     }
 
     fun search(q: String) {
         searchQuery = q
-        val base = if (currentTab == 1) allLines.filter { bookmarks.contains(it.id) } else allLines
-
-        displayedLines = if (q.isEmpty()) {
-            if (currentTab == 1) base else allLines.take(pageSize)
-        } else if (!isRegexMode) {
-            base.filter { it.text.contains(q, true) }
-        } else {
-            try {
-                val r = Pattern.compile(q)
-                base.filter { r.matcher(it.text).find() }
-            } catch (e: Exception) {
-                emptyList()
-            }
-        }
+        refresh()
     }
 
     fun getFilteredText(onlyBookmarks: Boolean = false): String {

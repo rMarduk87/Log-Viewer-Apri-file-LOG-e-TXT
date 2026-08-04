@@ -1,4 +1,9 @@
-- [ ] Update `strings.xml` with new resources
-- [ ] Refactor `LogViewModel.kt` to use string resources
-- [ ] Refactor `MainActivity.kt` to use string resources
-- [ ] Verify build and functionality
+- [x] Update `strings.xml` with new resources
+- [x] Refactor `LogViewModel.kt` to use string resources
+- [x] Refactor `MainActivity.kt` to use string resources
+- [x] Add LogType filter to `LogViewModel`
+- [x] Add LogType filter UI to `MainActivity`
+- [x] Set default filter to `ERROR`
+- [x] Add Next/Prev Error navigation buttons
+- [x] Implement error jumping logic in `LogViewModel`
+- [x] Verify build and functionality
